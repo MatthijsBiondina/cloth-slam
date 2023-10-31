@@ -4,8 +4,6 @@ import numpy as np
 import requests
 from PIL import Image
 
-from keypoint_integration.utils.tools import pyout
-
 
 class ServerResponseError(Exception):
     def __init__(self, status_code, message=None):

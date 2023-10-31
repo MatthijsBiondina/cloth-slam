@@ -56,6 +56,8 @@ def process_image():
     return send_file(heatmap_byte_arr, mimetype='image/png')
 
 
-if __name__ == '__main__':
-    model = PretrainedModel(MODEL_NAME)
-    app.run(host='0.0.0.0', port=5000)
+def flask_server_startup(model_path):
+    global model
+
+    model = PretrainedModel(model_path)
+    app.run(host="0.0.0.0", port=5000)
