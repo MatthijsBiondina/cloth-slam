@@ -13,8 +13,7 @@ def start_server():
 if __name__ == '__main__':
     process = Process(target=start_server)
     process.start()
-    for _ in pbar(range(10), "Launching Server"):
-        time.sleep(0.1)
+    time.sleep(1)
 
     server_addr = ('172.18.20.240', 5000)
     image_dir = "/home/matt/Pictures/towels/trial_exposure_250"

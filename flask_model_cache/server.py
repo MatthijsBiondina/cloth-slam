@@ -16,36 +16,6 @@ def send_confirmation(socket, msg):
     socket.send(str(msg).encode('utf-8'))
 
 
-def client_handler(client_socket: socket.socket,
-                   client_address: Tuple[str, int],
-                   task_queue: Queue, res_queueu: Queue):
-    while True:
-        # Receive metadata from the client
-        meta_data = client_socket.recv(1024)
-        if len(meta_data) == 0:
-            pyout(f"Connection dropped "
-                  f"({client_address[0]}:{client_address[1]})")
-            break
-        else:
-            meta_data = json.loads(meta_data.decode('utf-8'))
-            if 'task' not in meta_data:
-                send_confirmation(
-                    client_socket,
-                    "Please specify 'task' in metadata. I don't know what to "
-                    "do with this package.")
-            elif meta_data['task'] == 'process':
-                send_confirmation(client_socket, 'ok')
-                # Receive image data from client
-                buffer = b''
-                while len(buffer) < meta_data['filesize']:
-                    data = client_socket.recv(1024)
-                    if not data:
-                        break
-                    buffer += data
-                send_confirmation(client_socket, 'ok')
-                task_queue.put((meta_data, buffer))
-
-
 class DeploymentManager:
     SERVER_ADDRESSES = {'kat': ('172.18.20.240', 5001)}
 
@@ -73,6 +43,35 @@ class Server():
 
         server_socket.listen(5)
         pyout("Server is running and waiting for connections...")
+
+        def client_handler(client_socket: socket.socket,
+                           client_address: Tuple[str, int],
+                           task_queue: Queue, res_queueu: Queue):
+            while True:
+                # Receive metadata from the client
+                meta_data = client_socket.recv(1024)
+                if len(meta_data) == 0:
+                    pyout(f"Connection dropped "
+                          f"({client_address[0]}:{client_address[1]})")
+                    break
+                else:
+                    meta_data = json.loads(meta_data.decode('utf-8'))
+                    if 'task' not in meta_data:
+                        send_confirmation(
+                            client_socket,
+                            "Please specify 'task' in metadata. I don't know "
+                            "what to do with this package.")
+                    elif meta_data['task'] == 'process':
+                        send_confirmation(client_socket, 'ok')
+                        # Receive image data from client
+                        buffer = b''
+                        while len(buffer) < meta_data['filesize']:
+                            data = client_socket.recv(1024)
+                            if not data:
+                                break
+                            buffer += data
+                        send_confirmation(client_socket, 'ok')
+                        task_queue.put((meta_data, buffer))
 
         try:
             while True:
