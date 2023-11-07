@@ -9,8 +9,6 @@ from keypoint_detection.utils.heatmap import \
 from keypoint_detection.utils.load_checkpoints import \
     get_model_from_wandb_checkpoint, load_from_checkpoint
 
-from keypoint_integration.utils.tools import pyout
-
 import requests
 
 
@@ -41,11 +39,14 @@ def local_inference(model, image: np.ndarray, device="cuda"):
 
 
 class PretrainedModel:
-    def __init__(self, checkpoint_name):
+    def __init__(self, checkpoint_name, gpu=None):
         # self.model = get_model_from_wandb_checkpoint(checkpoint_name)
         self.model = load_from_checkpoint(checkpoint_name)
         self.model.eval()
-        self.model.cuda()
+        if gpu is None:
+            self.model.cuda()
+        else:
+            self.model.cuda(gpu)
         self.device = self.model.device
 
     def __call__(self, img):

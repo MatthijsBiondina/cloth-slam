@@ -53,15 +53,15 @@ if __name__ == "__main__":
     image_path = pathlib.Path("").parent / "test" / "test_dataset" / "images" / "0.png"
 
     # load a wandb checkpoint
-    model = get_model_from_wandb_checkpoint(checkpoint_name)
+    pool = get_model_from_wandb_checkpoint(checkpoint_name)
 
     # do not forget to set model to eval mode!
     # this will e.g. use the running statistics for batch norm layers instead of the batch statistics.
     # this is important as inference batches are typically a lot smaller which would create too much noise.
-    model.eval()
+    pool.eval()
 
     # move model to gpu
-    model.cuda()
+    pool.cuda()
 
     # load image from disk
     # although at inference you will most likely get the image from the camera
@@ -70,5 +70,5 @@ if __name__ == "__main__":
     # beware of the color channels order, it should be RGBD.
     image = io.imread(image_path)
 
-    keypoints = local_inference(model.half(), image)
+    keypoints = local_inference(pool.half(), image)
     print(keypoints)

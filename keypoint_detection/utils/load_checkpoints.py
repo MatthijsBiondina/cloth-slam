@@ -49,5 +49,5 @@ def load_from_checkpoint(checkpoint_path: str, hparams_to_override: dict = None)
 
 
 if __name__ == "__main__":
-    model = get_model_from_wandb_checkpoint("tlips/synthetic-cloth-keypoints-tshirts/model-4um302zo:v0")
-    print(model.hparams)
+    pool = get_model_from_wandb_checkpoint("tlips/synthetic-cloth-keypoints-tshirts/model-4um302zo:v0")
+    print(pool.hparams)
