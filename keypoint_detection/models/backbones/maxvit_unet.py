@@ -92,12 +92,12 @@ class MaxVitPicoUnet(MaxVitUnet):
 
 
 if __name__ == "__main__":
-    model = timm.create_model("maxvit_rmlp_pico_rw_256")
+    pool = timm.create_model("maxvit_rmlp_pico_rw_256")
     # model = timm.create_model("maxvit_nano_rw_256")
-    feature_extractor = create_feature_extractor(model, ["stem", "stages.0", "stages.1", "stages.2", "stages.3"])
+    feature_extractor = create_feature_extractor(pool, ["stem", "stages.0", "stages.1", "stages.2", "stages.3"])
     x = torch.zeros((1, 3, 256, 256))
     features = list(feature_extractor(x).values())
-    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    n_params = sum(p.numel() for p in pool.parameters() if p.requires_grad)
     print(f"num params = {n_params/10**6:.2f} M")
     feature_config = []
     for x in features:
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         feature_config.append(config)
     print(f"{feature_config=}")
 
-    model = MaxVitPicoUnet()
+    pool = MaxVitPicoUnet()
     x = torch.zeros((1, 3, 256, 256))
-    y = model(x)
+    y = pool(x)
     print(f"{y.shape=}")

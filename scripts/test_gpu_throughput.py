@@ -16,7 +16,7 @@ dtype = torch.float32
 
 class model(nn.Module):
     def __init__(self):
-        super(model, self).__init__()
+        super(pool, self).__init__()
         self.resnet = resnet152()
         self.linear = nn.Sequential(
             nn.Linear(1000, 250), nn.Linear(250, 64), nn.Linear(64, 32), nn.Linear(32, 10), nn.ReLU()
@@ -31,7 +31,7 @@ class model(nn.Module):
 
 x = torch.randn(32, 3, 224, 224).cuda(gpu_id).to(dtype)
 y = torch.randint(0, 10, (32,)).cuda(gpu_id)
-m = model().cuda(gpu_id).to(dtype)
+m = pool().cuda(gpu_id).to(dtype)
 criterion = nn.CrossEntropyLoss()
 optim = torch.optim.Adam(m.parameters(), 1e-4)
 

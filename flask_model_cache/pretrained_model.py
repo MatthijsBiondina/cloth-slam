@@ -9,9 +9,9 @@ from keypoint_detection.utils.heatmap import \
 from keypoint_detection.utils.load_checkpoints import \
     get_model_from_wandb_checkpoint, load_from_checkpoint
 
-from keypoint_integration.utils.tools import pyout
-
 import requests
+
+from utils.tools import pyout
 
 
 def local_inference(model, image: np.ndarray, device="cuda"):
@@ -41,20 +41,30 @@ def local_inference(model, image: np.ndarray, device="cuda"):
 
 
 class PretrainedModel:
-    def __init__(self, checkpoint_name):
+    def __init__(self, checkpoint_name, gpu=None):
         # self.model = get_model_from_wandb_checkpoint(checkpoint_name)
         self.model = load_from_checkpoint(checkpoint_name)
         self.model.eval()
-        self.model.cuda()
+        if gpu is None:
+            self.model.cuda()
+        else:
+            self.model.cuda(gpu)
         self.device = self.model.device
 
     def __call__(self, img):
-        img = to_tensor(img).unsqueeze(0).to(self.device)
+        if isinstance(img, list):
+            img = [to_tensor(i) for i in img]
+            img = torch.stack(img, dim=0).to(self.device)
+        else:
+            img = to_tensor(img).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            heatmaps = self.model(img).squeeze(0)
+            heatmaps = self.model(img)
 
-        predicted_keypoints = get_keypoints_from_heatmap_batch_maxpool(
-            heatmaps.unsqueeze(0))[0]
+        if heatmaps.size(0) == 0:
+            predicted_keypoints = get_keypoints_from_heatmap_batch_maxpool(
+                heatmaps.unsqueeze(0))[0]
 
-        return predicted_keypoints, heatmaps
+            return predicted_keypoints, heatmaps
+        else:
+            return None, heatmaps

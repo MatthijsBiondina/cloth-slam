@@ -36,6 +36,6 @@ if __name__ == "__main__":
     image = Image.open(image_path)
     image = image.resize(image_size)
 
-    model = get_model_from_wandb_checkpoint(wandb_checkpoint)
-    image = run_inference(model, image)
+    pool = get_model_from_wandb_checkpoint(wandb_checkpoint)
+    image = run_inference(pool, image)
     image.save("inference_result.png")

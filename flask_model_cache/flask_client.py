@@ -1,8 +1,12 @@
+import json
 from io import BytesIO
+from typing import Dict, Any
 
 import numpy as np
 import requests
 from PIL import Image
+
+from utils.tools import pyout
 
 
 class ServerResponseError(Exception):
@@ -49,3 +53,19 @@ class FlaskModel:
             return processed_image_array
         else:
             raise ServerResponseError(response.status_code, response.text)
+
+    def add_to_queue(self, img: Image, data: Dict[str, Any]):
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format="PNG")
+        img_byte_arr.seek(0)
+
+        # Sent image to server
+        json_data = json.dumps(data)
+        files = {'image': ('image.png', img_byte_arr, 'image/png'),
+                 'data': ('data', json_data, 'application/json')}
+        response = requests.post(f"{self.server_url}/add_to_queue",
+                                 files=files)
+
+    def get_from_queue(self):
+        response = requests.get(f"{self.server_url}/get_from_queue")
+        pyout()

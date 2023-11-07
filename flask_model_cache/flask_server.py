@@ -1,3 +1,5 @@
+import io
+import json
 from io import BytesIO
 
 import numpy as np
@@ -5,59 +7,52 @@ import torch
 from PIL import Image
 from flask import Flask, jsonify, request, send_file
 
-from keypoint_integration.inference.pretrained_model import PretrainedModel
-from keypoint_integration.utils.tools import pyout
 from torchvision import transforms
+
+from flask_model_cache.model_pool import ModelPool
+from flask_model_cache.pretrained_model import PretrainedModel
+from utils.tools import pyout
 
 MODEL_NAME = "/home/matt/Models/epoch=12-step=4862.ckpt"
 app = Flask(__name__)
-model = None
+pool: ModelPool = None
 
 
 @app.route('/check_model', methods=['GET'])
 def check_model():
-    global model
-    return jsonify(model_loaded=bool(model))
+    global pool
+    return jsonify(model_loaded=bool(pool))
 
 
-@app.route('/process_image', methods=['POST'])
-def process_image():
-    global model
-    assert model is not None, "Model not loaded on server"
+@app.route('/add_to_queue', methods=['POST'])
+def add_request_to_queue():
+    global pool
+    assert pool is not None, "Model not loaded on server"
 
-    file = request.files['image']
-    if not file:
-        return "No file uploaded", 400
+    image_file = request.files['image']
+    img = Image.open(io.BytesIO(image_file.read()))
 
-    # Convert the image file to a PIL Image object
-    img = Image.open(file.stream)
+    json_data = request.files['data'].read()
+    data = json.loads(json_data)
 
-    # # Define the transformation
-    # transform = transforms.Compose([transforms.ToTensor()])
-    #
-    # # Apply the transformation and add a batch dimension
-    # img_tensor = transform(img).unsqueeze(0)
-    # img_tensor = img_tensor.to(model.device)
+    pool.add_to_queue(img, data)
 
-    with torch.no_grad():
-        keypoints, heatmap = model(img)
+    # Send a confirmation response
+    return jsonify({"message": "Image received and added to queue"}), 202
 
-    heatmap = heatmap.squeeze(0).cpu().numpy()
-    assert np.max(heatmap) <= 1
+@app.route('/get_from_queue', methods=['GET'])
+def empty_results_queue():
+    global pool
+    assert pool is not None, "Model not loaded on server"
 
-    heatmap_img = Image.fromarray((heatmap * 255).astype('uint8'))
+    results = pool.get_from_queue()
 
-    # Save the heatmap image to a BytesIO object
-    heatmap_byte_arr = BytesIO()
-    heatmap_img.save(heatmap_byte_arr, format='PNG')
-
-    # Send the heatmap image back to the client
-    heatmap_byte_arr.seek(0)
-    return send_file(heatmap_byte_arr, mimetype='image/png')
+    pyout()
 
 
 def flask_server_startup(model_path):
-    global model
+    global pool
 
-    model = PretrainedModel(model_path)
+    # model = PretrainedModel(model_path)
+    pool = ModelPool(model_path)
     app.run(host="0.0.0.0", port=5000)
