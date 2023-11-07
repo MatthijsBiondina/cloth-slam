@@ -11,6 +11,8 @@ from keypoint_detection.utils.load_checkpoints import \
 
 import requests
 
+from utils.tools import pyout
+
 
 def local_inference(model, image: np.ndarray, device="cuda"):
     """
@@ -50,12 +52,19 @@ class PretrainedModel:
         self.device = self.model.device
 
     def __call__(self, img):
-        img = to_tensor(img).unsqueeze(0).to(self.device)
+        if isinstance(img, list):
+            img = [to_tensor(i) for i in img]
+            img = torch.stack(img, dim=0).to(self.device)
+        else:
+            img = to_tensor(img).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            heatmaps = self.model(img).squeeze(0)
+            heatmaps = self.model(img)
 
-        predicted_keypoints = get_keypoints_from_heatmap_batch_maxpool(
-            heatmaps.unsqueeze(0))[0]
+        if heatmaps.size(0) == 0:
+            predicted_keypoints = get_keypoints_from_heatmap_batch_maxpool(
+                heatmaps.unsqueeze(0))[0]
 
-        return predicted_keypoints, heatmaps
+            return predicted_keypoints, heatmaps
+        else:
+            return None, heatmaps

@@ -2,11 +2,13 @@ import io
 import json
 import os
 import socket
+import time
 
 import imageio
 import numpy as np
 from PIL import Image
 
+from utils.socket_utils import send_confirmation
 from utils.tools import pyout, pbar
 
 
@@ -110,6 +112,7 @@ def load_images_and_json(root):
 
     return images_and_data
 
+
 def block_until_confirmation(socket):
     msg = socket.recv(1024).decode('utf-8')
     if msg == 'ok':
@@ -117,17 +120,46 @@ def block_until_confirmation(socket):
     else:
         raise RuntimeError(f"Unexpected server response: {msg}")
 
+
 def send_data_to_server(server_address, images_and_data):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(server_address)
 
     for data in pbar(images_and_data, desc="Transmitting data"):
-        data['meta']['task'] = 'process'
+        data['meta']['method'] = 'post'
         client_socket.sendall(json.dumps(data['meta']).encode('utf-8'))
         block_until_confirmation(client_socket)
         client_socket.sendall(data['bytes'])
         block_until_confirmation(client_socket)
     pyout("All data sent!")
+
+
+def recv_data_from_server(server_address, images_and_data):
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect(server_address)
+
+    bar = pbar(range(len(images_and_data)), desc="Receiving Heatmaps")
+    results = []
+    while True:
+        if len(results) == len(images_and_data):
+            break
+
+        client.sendall(json.dumps({'method': 'get'}).encode('utf-8'))
+        resp = client.recv(1024).decode('utf-8')
+        if resp == "False":
+            time.sleep(0.1)
+        else:
+            meta = json.loads(resp)
+            send_confirmation(client, "ok")
+            buffer = b''
+            while len(buffer) < meta['filesize']:
+                data = client.recv(1024)
+                if not data:
+                    break
+                buffer += data
+            results.append((meta, buffer))
+            bar.update(1)
+            send_confirmation(client, "ok")
 
 
 if __name__ == "__main__":
