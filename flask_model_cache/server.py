@@ -40,6 +40,7 @@ class Server():
     def kill(self):
         for process in self.processes:
             process.kill()
+        for process in self.processes:
             process.join()
 
 

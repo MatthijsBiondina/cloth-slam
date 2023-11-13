@@ -76,7 +76,12 @@ def client_handler(client_socket: socket.socket,
           f"({client_address[0]}:{client_address[1]})")
     while True:
         # Receive metadata from the client
-        resp = client_socket.recv(1024)
+        try:
+            resp = client_socket.recv(1024)
+        except ConnectionResetError:
+            pyout(f"Connection dropped "
+                  f"({client_address[0]}:{client_address[1]})")
+            break
         if len(resp) == 0:
             pyout(f"Connection dropped "
                   f"({client_address[0]}:{client_address[1]})")
