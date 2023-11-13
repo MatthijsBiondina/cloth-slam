@@ -64,7 +64,7 @@ def correct_tcp_matrix(tcp_matrix):
     return tcp_matrix
 
 
-def load_images_and_json(root):
+def load_images_and_json(root, debug=False):
     """
     Load images and their corresponding metadata from disk.
 
@@ -83,10 +83,14 @@ def load_images_and_json(root):
     # Iterate over all files in the directory with progress bar
     for ii, filename in pbar(list(enumerate(os.listdir(root))),
                              desc="Read from disc"):
+        if debug and ii >= 10:
+            pyout("Early stop for DEBUG mode.")
+            break
         # Process only .jpg files
         if filename.endswith('.jpg'):
             # Open the image file
             img = Image.open(f"{root}/{filename}")
+            img = img.rotate(270, expand=True)
 
             # Extract frame index and TCP string from the filename
             idx, tcp_str = filename.replace(".jpg", "").split("_")
@@ -157,9 +161,26 @@ def recv_data_from_server(server_address, images_and_data):
                 if not data:
                     break
                 buffer += data
-            results.append((meta, buffer))
+
+            item = [i for i in images_and_data
+                    if i['meta']['idx'] == meta['idx']][0]
+            item['heatmap'] = Image.open(io.BytesIO(buffer))
+
+            yield item
+
+            results.append(item)
+
+            #
+            # # for i in images_and_data:
+            # #     pyout(f"{idx} =? {i['frame_idx']}")
+            # #     pyout(i)
+            #
+            # results.append((meta, buffer))
+
             bar.update(1)
             send_confirmation(client, "ok")
+
+    # return results
 
 
 if __name__ == "__main__":

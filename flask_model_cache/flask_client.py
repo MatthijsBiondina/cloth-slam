@@ -66,6 +66,3 @@ class FlaskModel:
         response = requests.post(f"{self.server_url}/add_to_queue",
                                  files=files)
 
-    def get_from_queue(self):
-        response = requests.get(f"{self.server_url}/get_from_queue")
-        pyout()
