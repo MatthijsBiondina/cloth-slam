@@ -48,8 +48,8 @@ def run(hosts, port, in_queue, ou_queue, ok_queue):
 
 
 class DeploymentManager(Server):
-    # WORKER_HOSTS = {'kat': "172.18.20.240", 'gorilla': "172.18.21.117"}
-    WORKER_HOSTS = {'gorilla': "172.18.21.117"}
+    WORKER_HOSTS = {'kat': "172.18.20.240", 'gorilla': "172.18.21.117"}
+    # WORKER_HOSTS = {'gorilla': "172.18.21.117"}
     WORKERS_PORT = 5001
 
     def __init__(self, host, port):
