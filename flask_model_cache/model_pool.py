@@ -1,6 +1,7 @@
 import multiprocessing
 import time
 from multiprocessing import Queue, Process
+from typing import Tuple
 
 import torch.cuda
 
@@ -10,7 +11,8 @@ from utils.tools import pyout, pbar
 
 
 def model_cache(checkpoint_name, cuda_idx: int,
-                in_queue: Queue, ou_queue: Queue):
+                in_queue: Queue, ou_queue: Queue,
+                shape: Tuple[int, int] = (512, 512)):
     model = PretrainedModel(checkpoint_name, gpu=cuda_idx)
     ou_queue.put({"msg": f"GPU{cuda_idx}: success!"})
 
@@ -23,20 +25,20 @@ def model_cache(checkpoint_name, cuda_idx: int,
 
             top_box = (0, 0, 1080, 1080)
             top_img = img.crop(top_box)
-            top_img = top_img.resize((1024, 1024))
+            top_img = top_img.resize(shape)
 
             bot_box = (0, 840, 1080, 1920)
             bot_img = img.crop(bot_box)
-            bot_img = bot_img.resize((1024, 1024))
+            bot_img = bot_img.resize(shape)
 
             _, top_result = model(top_img)
             _, bot_result = model(bot_img)
 
-            top_heat = torch.zeros((1820, 1024))
-            top_heat[:1024] = top_result[0]
+            top_heat = torch.zeros((1820 // 2, 1024 // 2))
+            top_heat[:1024 // 2] = top_result[0]
 
-            bot_heat = torch.zeros((1820, 1024))
-            bot_heat[-1024:] = bot_result[0]
+            bot_heat = torch.zeros((1820 // 2, 1024 // 2))
+            bot_heat[-1024 // 2:] = bot_result[0]
 
             heatmap = torch.maximum(top_heat, bot_heat)
             heatmap = heatmap.cpu().numpy().tolist()
@@ -81,6 +83,4 @@ class ModelPool:
             results.append(self.queue_in.get())
             self.counter -= 1
 
-
         pyout()
-
