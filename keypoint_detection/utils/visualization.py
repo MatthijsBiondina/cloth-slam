@@ -169,16 +169,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     hparams = vars(parser.parse_args())
-    hparams["keypoint_channel_configuration"] = parse_channel_configuration(hparams["keypoint_channel_configuration"])
+    hparams["keypoint_channel_configuration"] = parse_channel_configuration(
+        hparams["keypoint_channel_configuration"])
 
     dataset = COCOKeypointsDataset(**hparams)
     batch_size = 6
-    dataloader = DataLoader(dataset, batch_size, shuffle=False, num_workers=0, collate_fn=dataset.collate_fn)
+    dataloader = DataLoader(dataset, batch_size, shuffle=False, num_workers=0,
+                            collate_fn=dataset.collate_fn)
     images, keypoint_channels = next(iter(dataloader))
 
     shape = images.shape[2:]
 
-    heatmaps = create_heatmap_batch(shape, keypoint_channels[0], sigma=6.0, device="cpu")
+    heatmaps = create_heatmap_batch(shape, keypoint_channels[0], sigma=6.0,
+                                    device="cpu")
     grid = visualize_predicted_heatmaps(images, heatmaps, heatmaps, 6)
 
     image_numpy = grid.permute(1, 2, 0).numpy()
