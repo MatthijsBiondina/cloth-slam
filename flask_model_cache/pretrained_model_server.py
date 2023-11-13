@@ -74,7 +74,7 @@ def run(checkpoint, gpu_idx, in_queue, ou_queue, ok_queue):
 
 
 class ModelServer(Server):
-    MODEL_PATH = "/home/matt/Models/epoch=14-step=5610.ckpt"
+    MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"
 
     def __init__(self, host, port, checkpoint_name=None):
         super().__init__(host, port)
