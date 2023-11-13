@@ -2,7 +2,7 @@ import socket
 
 from flask_model_cache.pretrained_model_server import ModelServer
 
-MODEL_PATH = "/home/matt/Models/epoch=14-step=5610.ckpt"
+# MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"
 
 if __name__ == '__main__':
     if socket.gethostname() == 'kat':
