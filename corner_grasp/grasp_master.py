@@ -1,6 +1,8 @@
+import pickle
 import sys
 import time
 import warnings
+from multiprocessing import Queue
 from typing import Optional
 
 import numpy as np
@@ -8,8 +10,11 @@ from airo_robots.manipulators.hardware.ur_rtde import URrtde
 
 from corner_grasp.grasp_config import POSE_LEFT_REST, POSE_LEFT_PRESENT, \
     POSE_RIGHT_REST, EXPLORATION_TRAJECTORY, EXPLORATION_RECORD_FLAG
+from corner_grasp.slave_alignment import TemporalAligner
+from corner_grasp.slave_keypoints import InferenceModel
 from corner_grasp.slave_realsense import RealsenseSlave
 from utils.tools import pyout
+from utils.utils import serialize_ndarray, wait_for_next_cycle
 
 np.set_printoptions(precision=3, suppress=True)
 warnings.simplefilter('once', RuntimeWarning)
@@ -17,32 +22,38 @@ warnings.simplefilter('once', RuntimeWarning)
 
 class RobotMaster:
     CONTROL_LOOP_FREQUENCY = 60
+    MAX_QUEUE_SIZE = 1000
 
     def __init__(self,
                  ip_right: str = "10.42.0.162",
                  ip_left: str = "10.42.0.163"):
 
-        self.camera = RealsenseSlave()
-
         self.arm_right = URrtde(ip_right, URrtde.UR3E_CONFIG)
         self.arm_left = URrtde(ip_left, URrtde.UR3E_CONFIG)
+        A = self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST)
+
+        self.camera = RealsenseSlave()
+        self.tcp_queue = Queue()
+        self.aligner = TemporalAligner(
+            self.tcp_queue, self.camera.image_queue)
+        self.keypoint_detector = InferenceModel(self.aligner.pair_queue)
+
+        A.wait()
 
     def scan_towel(self):
-        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
-        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
-        self.camera.shutdown()
-        sys.exit(0)
-
+        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
 
         for pose, record_segment in (
-                zip(EXPLORATION_TRAJECTORY, EXPLORATION_RECORD_FLAG)):
+                zip(EXPLORATION_TRAJECTORY[:], EXPLORATION_RECORD_FLAG[:])):
             self.__move_arm_to_joint_pose(
                 self.arm_right, pose, record=record_segment)
 
-        self.arm_left.move_to_joint_configuration(POSE_RIGHT_REST)
+        self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST)
 
         self.camera.shutdown()
+        self.aligner.shutdown()
 
     def __move_arm_to_joint_pose(self,
                                  arm: URrtde,
@@ -61,19 +72,11 @@ class RobotMaster:
             start_time = time.time()
 
             # Any logic while waiting for the arm
+            if self.tcp_queue.qsize() < self.MAX_QUEUE_SIZE:
+                self.tcp_queue.put(
+                    (time.time(), pickle.dumps(arm.get_tcp_pose())))
 
-            self.__wait_for_next_cycle(start_time)
+            wait_for_next_cycle(start_time, self.CONTROL_LOOP_FREQUENCY)
 
         if record:
             self.camera.stop_recording()
-
-    def __wait_for_next_cycle(self, start_time: float):
-        loop_duration = 1 / self.CONTROL_LOOP_FREQUENCY
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-
-        if elapsed_time < loop_duration:
-            time.sleep(loop_duration - elapsed_time)
-        else:
-            warnings.warn(f"Control loop frequency dropped below desired "
-                          f"{self.CONTROL_LOOP_FREQUENCY} Hz", RuntimeWarning)

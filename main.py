@@ -1,4 +1,5 @@
 import atexit
+import multiprocessing
 import os
 import sys
 import time
@@ -11,6 +12,8 @@ import numpy as np
 
 from corner_grasp.grasp_master import RobotMaster
 from utils.tools import pyout, pbar
+
+# multiprocessing.set_start_method('spawn')
 
 robot_master = RobotMaster()
 robot_master.scan_towel()

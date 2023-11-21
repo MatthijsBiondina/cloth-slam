@@ -1,17 +1,23 @@
+import base64
+import pickle
 import time
 from multiprocessing import Process, Queue, shared_memory
 from typing import Tuple
 
+import cv2
 import numpy as np
 
 from utils.tools import pyout
 import pyrealsense2
+
+from utils.utils import serialize_ndarray, deserialize_ndarray
 
 
 class RealsenseSlave():
     # Different from camera FPS. This one's only relevant when the camera is
     # not recording.
     CONTROL_LOOP_FREQUENCY = 60
+    MAX_QSIZE = 100
 
     def __init__(self,
                  resolution: Tuple[int, int] = (1280, 720),
@@ -31,7 +37,7 @@ class RealsenseSlave():
         while self.ready_queue.empty():
             time.sleep(1 / 60)
 
-    def run(self, system_queue, ready_queue, img_queue):
+    def run(self, system_queue: Queue, ready_queue: Queue, img_queue: Queue):
         pipeline = pyrealsense2.pipeline()
         config = pyrealsense2.config()
         config.enable_stream(pyrealsense2.stream.color, *self.resolution,
@@ -57,33 +63,14 @@ class RealsenseSlave():
                 time.sleep(1 / self.CONTROL_LOOP_FREQUENCY)
             else:
                 frame = pipeline.wait_for_frames().get_color_frame()
+                img = np.asanyarray(frame.get_data()).astype(np.uint8)
 
-                image, shared_mem = self.__create_shared_array(
-                    shape=(frame.height, frame.width, 3))
-                image[:] = np.asanyarray(frame.get_data())
-
-                img_queue.put((frame.timestamp, shared_mem.name))
-
-                # _, shared_mem_name = img_queue.get()
-                # existing_shm = shared_memory.SharedMemory(
-                #     name=shared_mem_name)
-                # existing_shm.close()
-                # existing_shm.unlink()
-
-                counter += 1
-
-        pyout(f"Recorded {counter} frames.")
+                if img_queue.qsize() < self.MAX_QSIZE:
+                    img_queue.put((frame.timestamp/1000,
+                                   serialize_ndarray(img)))
+                    counter += 1
 
         pipeline.stop()
-
-    def __create_shared_array(self, shape, dtype=np.uint8):
-        size = np.prod(shape)
-        shared_mem = shared_memory.SharedMemory(
-            create=True, size=size * dtype().itemsize)
-
-        array = np.ndarray(shape, dtype=dtype, buffer=shared_mem.buf)
-
-        return array, shared_mem
 
     def start_recording(self):
         self.system_queue.put("start_recording")
@@ -92,21 +79,14 @@ class RealsenseSlave():
         self.system_queue.put("stop_recording")
 
     def shutdown(self):
+        pyout(f"Queue size: {self.image_queue.qsize()}")
+
         self.system_queue.put("shutdown")
+        # while not self.image_queue.empty():
+        #     timestamp, shape, img_string = self.image_queue.get()
+        #     img = deserialize_ndarray(shape, img_string)
+        #
+        #     cv2.imshow("Window", img)
+        #     cv2.waitKey(100)
+
         self.process.join()
-
-        counter_good, counter_bad = 0, 0
-        while not self.image_queue.empty():
-            try:
-                _, shared_mem_name = self.image_queue.get()
-                existing_shm = shared_memory.SharedMemory(name=shared_mem_name)
-                existing_shm.close()
-                existing_shm.unlink()
-                counter_good += 1
-            except Exception:
-                counter_bad += 1
-
-        pyout(f"Cleaned up {counter_good} frames. Leaked {counter_bad} frames.")
-
-
-        pyout()
