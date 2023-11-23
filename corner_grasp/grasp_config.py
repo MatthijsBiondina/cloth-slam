@@ -17,7 +17,7 @@ EXPLORATION_TRAJECTORY = \
               [+0.070, -0.400, +0.850, -0.950, -1.000, +0.000],
               [+0.180, -1.050, +0.850, -0.300, -1.000, +0.000],
               [+0.350, -1.050, +0.550, -0.000, -1.000, +0.000],
-              [+0.350, -0.280, -0.773, -0.447, -1.000, +0.000],
+              [+0.350, -0.305, -0.793, -0.402, -1.000, +0.000],
               [+0.490, -0.730, -0.600, -0.170, -1.000, +0.000],
               [+0.370, -0.600, -0.850, -0.050, -1.000, +0.000],
               [+0.250, +0.050, -0.820, -0.730, -1.000, +0.000],
@@ -25,5 +25,5 @@ EXPLORATION_TRAJECTORY = \
 EXPLORATION_RECORD_FLAG = \
     (False, True, True, True, True, False, True, True, True, True)
 
-# PRETRAINED_MODEL_PATH = "/home/matt/Models/neat-disco.cpkt"
-PRETRAINED_MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"
+PRETRAINED_MODEL_PATH = "/home/matt/Models/neat-disco.ckpt"
+# PRETRAINED_MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"

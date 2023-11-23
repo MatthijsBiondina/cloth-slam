@@ -1,5 +1,6 @@
 import math
 import multiprocessing
+import os
 import pickle
 import time
 import warnings
@@ -15,7 +16,7 @@ from PIL import Image
 from corner_grasp.grasp_config import PRETRAINED_MODEL_PATH, CAMERA_TCP
 from flask_model_cache.pretrained_model import PretrainedModel
 from utils.exceptions import BreakException
-from utils.tools import pyout, pbar
+from utils.tools import pyout, pbar, makedirs
 from utils.utils import wait_for_next_cycle, deserialize_ndarray, clear_queue, \
     overlay_heatmap
 
@@ -44,6 +45,17 @@ class InferenceModel:
         for _ in pbar(range(len(self.processes)), desc="Loading Model Cache"):
             self.ready_queue.get()
 
+    def __init_output_dir(self, root="/home/matt/Datasets/real"):
+        trial_nr = len(os.listdir(root))
+        dir = f"{root}/{str(trial_nr).zfill(3)}"
+        makedirs(dir)
+
+        return dir
+
+    def __save_frame(self, img, root):
+        frame_nr = len(os.listdir(root))
+        img.save(f"{root}/{str(frame_nr).zfill(3)}.jpg")
+
     def run(self,
             checkpoint_name: str,
             cuda_idx: int,
@@ -51,7 +63,12 @@ class InferenceModel:
             ou_queue: Queue,
             sys_queue: Queue,
             ready_queue: Queue,
-            kernel: int = 512):
+            kernel: int = 512,
+            save: bool = True):
+
+        if save:
+            savedir = self.__init_output_dir()
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model = PretrainedModel(checkpoint_name, gpu=cuda_idx)
@@ -67,11 +84,13 @@ class InferenceModel:
                     tcp = pickle.loads(tcp_str)
                     img = deserialize_ndarray(*img_data)
                     pil = self.__preprocess_image(tcp, img)
+
+                    if save:
+                        self.__save_frame(pil, savedir)
+
                     heat = self.__model_inference(pil, model, kernel)
 
                     self.__show(pil, heat)
-
-
 
                 except Empty:
                     pass
@@ -79,8 +98,6 @@ class InferenceModel:
                 wait_for_next_cycle(t_start)
             except BreakException:
                 break
-
-        pyout()
 
     def __process_sys_command(self, sys_queue: Queue):
         if not sys_queue.empty():
@@ -116,23 +133,40 @@ class InferenceModel:
             assert H < 2 * kernel_shape
 
             img_new = img.resize((W, H))
-            img_top = img.crop((0, 0, W, W))
-            img_bot = img.crop(
-                (0, img_new.height - kernel_shape, W, img_new.height))
+            img_top = img_new.crop((0, 0, W, W))
+            img_bot = img_new.crop((0, H - W, W, H))
 
             _, res_top = model(img_top)
             _, res_bot = model(img_bot)
 
-            heat = torch.cat((res_top[0, 0, :H // 2],
-                              res_bot[0, 0, -int(math.ceil(H / 2)):]), dim=0)
+            # img_new.show(),
+
+            heat = torch.zeros(2, H, W
+                               ).to(res_top.device)
+
+            # disp = overlay_heatmap(
+            #     img_bot, res_bot[0, 0].detach().cpu().numpy() * 255)
+            # disp_arr = np.array(disp)[..., :3][..., ::-1]
+            #
+            # cv2.imshow("img", disp_arr)
+            # cv2.waitKey(50)
+
+            heat[0, :W, :W] = res_top
+            heat[1, -W:, -W:] = res_bot
+
+            heat, _ = torch.max(heat, dim=0)
+
+            # heat = torch.cat((res_top[0, 0, :H // 2],
+            #                   res_bot[0, 0, -int(math.ceil(H / 2)):]), dim=0)
             heat = np.clip(heat.detach().cpu().numpy(), 0., 1.)
             heat = cv2.resize(heat, (img.width, img.height))
             return heat
 
     def __show(self, img, heat):
-        new_img = overlay_heatmap(img, heat*255)
+        # return
+        new_img = overlay_heatmap(img, heat * 255)
 
-        cv2.imshow("img", np.array(new_img))
+        cv2.imshow("img", np.array(new_img)[..., :3][..., ::-1])
         cv2.waitKey(50)
 
     def shutdown(self):

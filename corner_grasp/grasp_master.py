@@ -6,6 +6,7 @@ from multiprocessing import Queue
 from typing import Optional
 
 import numpy as np
+from airo_robots.grippers import Robotiq2F85
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 
 from corner_grasp.grasp_config import POSE_LEFT_REST, POSE_LEFT_PRESENT, \
@@ -30,7 +31,10 @@ class RobotMaster:
 
         self.arm_right = URrtde(ip_right, URrtde.UR3E_CONFIG)
         self.arm_left = URrtde(ip_left, URrtde.UR3E_CONFIG)
-        A = self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST)
+        self.arm_left.gripper = Robotiq2F85(ip_left)
+        self.arm_left.default_linear_acceleration = 0.12
+
+        A = self.arm_left.move_to_joint_configuration(POSE_LEFT_PRESENT)
 
         self.camera = RealsenseSlave()
         self.tcp_queue = Queue()
@@ -41,16 +45,22 @@ class RobotMaster:
         A.wait()
 
     def scan_towel(self):
-        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
-        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
+        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT,
+                                      joint_speed=0.1)
+        self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
+
+        pyout(self.arm_right.get_tcp_pose())
 
         for pose, record_segment in (
                 zip(EXPLORATION_TRAJECTORY[:], EXPLORATION_RECORD_FLAG[:])):
             self.__move_arm_to_joint_pose(
                 self.arm_right, pose, record=record_segment)
 
-        self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST)
+        self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST).wait()
+        self.arm_left.move_to_joint_configuration(POSE_LEFT_REST).wait()
+        self.arm_left.gripper.open()
 
         self.camera.shutdown()
         self.aligner.shutdown()
