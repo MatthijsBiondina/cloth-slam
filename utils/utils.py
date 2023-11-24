@@ -72,9 +72,10 @@ def wait_for_next_cycle(start_time: float,
 
     if elapsed_time < loop_duration:
         time.sleep(loop_duration - elapsed_time)
+        return True
     else:
-        warnings.warn(f"Control loop frequency dropped below desired "
-                      f"{control_loop_frequency} Hz", RuntimeWarning)
+        return False
+
 
 def apply_viridis_colormap(heatmap_bw):
     # Convert grayscale image to numpy array

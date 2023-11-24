@@ -25,5 +25,6 @@ EXPLORATION_TRAJECTORY = \
 EXPLORATION_RECORD_FLAG = \
     (False, True, True, True, True, False, True, True, True, True)
 
-PRETRAINED_MODEL_PATH = "/home/matt/Models/neat-disco.ckpt"
+# PRETRAINED_MODEL_PATH = "/home/matt/Models/neat-disco.ckpt"
+PRETRAINED_MODEL_PATH = "/home/matt/Models/genial-water.ckpt"
 # PRETRAINED_MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"

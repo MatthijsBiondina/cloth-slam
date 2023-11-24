@@ -12,6 +12,7 @@ from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from corner_grasp.grasp_config import POSE_LEFT_REST, POSE_LEFT_PRESENT, \
     POSE_RIGHT_REST, EXPLORATION_TRAJECTORY, EXPLORATION_RECORD_FLAG
 from corner_grasp.slave_alignment import TemporalAligner
+from corner_grasp.slave_gaussian import GaussianMixtureModel
 from corner_grasp.slave_keypoints import InferenceModel
 from corner_grasp.slave_realsense import RealsenseSlave
 from utils.tools import pyout
@@ -40,13 +41,16 @@ class RobotMaster:
         self.tcp_queue = Queue()
         self.aligner = TemporalAligner(
             self.tcp_queue, self.camera.image_queue)
-        self.keypoint_detector = InferenceModel(self.aligner.pair_queue)
+        self.neural_network = InferenceModel(self.aligner.pair_queue)
+        self.gaussian_mixture = GaussianMixtureModel(
+            self.neural_network.out_queue)
 
         A.wait()
 
     def scan_towel(self):
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
-        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        sys.exit(0)
         self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT,
                                       joint_speed=0.1)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
@@ -59,8 +63,8 @@ class RobotMaster:
                 self.arm_right, pose, record=record_segment)
 
         self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST).wait()
-        self.arm_left.move_to_joint_configuration(POSE_LEFT_REST).wait()
-        self.arm_left.gripper.open()
+        # self.arm_left.move_to_joint_configuration(POSE_LEFT_REST).wait()
+        # self.arm_left.gripper.open()
 
         self.camera.shutdown()
         self.aligner.shutdown()

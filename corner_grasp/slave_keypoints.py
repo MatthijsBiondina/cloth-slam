@@ -18,7 +18,7 @@ from flask_model_cache.pretrained_model import PretrainedModel
 from utils.exceptions import BreakException
 from utils.tools import pyout, pbar, makedirs
 from utils.utils import wait_for_next_cycle, deserialize_ndarray, clear_queue, \
-    overlay_heatmap
+    overlay_heatmap, serialize_ndarray
 
 
 class InferenceModel:
@@ -64,7 +64,7 @@ class InferenceModel:
             sys_queue: Queue,
             ready_queue: Queue,
             kernel: int = 512,
-            save: bool = True):
+            save: bool = False):
 
         if save:
             savedir = self.__init_output_dir()
@@ -89,6 +89,9 @@ class InferenceModel:
                         self.__save_frame(pil, savedir)
 
                     heat = self.__model_inference(pil, model, kernel)
+                    heat_data = serialize_ndarray(
+                        (heat * 255).astype(np.uint8))
+                    ou_queue.put((tcp_str, img_data, heat_data))
 
                     self.__show(pil, heat)
 
@@ -139,31 +142,20 @@ class InferenceModel:
             _, res_top = model(img_top)
             _, res_bot = model(img_bot)
 
-            # img_new.show(),
-
             heat = torch.zeros(2, H, W
                                ).to(res_top.device)
-
-            # disp = overlay_heatmap(
-            #     img_bot, res_bot[0, 0].detach().cpu().numpy() * 255)
-            # disp_arr = np.array(disp)[..., :3][..., ::-1]
-            #
-            # cv2.imshow("img", disp_arr)
-            # cv2.waitKey(50)
 
             heat[0, :W, :W] = res_top
             heat[1, -W:, -W:] = res_bot
 
             heat, _ = torch.max(heat, dim=0)
 
-            # heat = torch.cat((res_top[0, 0, :H // 2],
-            #                   res_bot[0, 0, -int(math.ceil(H / 2)):]), dim=0)
             heat = np.clip(heat.detach().cpu().numpy(), 0., 1.)
             heat = cv2.resize(heat, (img.width, img.height))
             return heat
 
     def __show(self, img, heat):
-        # return
+        return
         new_img = overlay_heatmap(img, heat * 255)
 
         cv2.imshow("img", np.array(new_img)[..., :3][..., ::-1])

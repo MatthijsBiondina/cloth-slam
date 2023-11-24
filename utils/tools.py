@@ -136,7 +136,9 @@ def makedirs(path):
 
 def pbar(iterable, desc="", leave=False, total=None, disable=False):
     # return iterable
-    if socket.gethostname() == "ava" or socket.gethostname() == "kat":
+    host = socket.gethostname()
+
+    if host in ("AM", "kat", "gorilla"):
         return tqdm(iterable, desc=poem(desc), leave=leave, total=total,
                     disable=(current_process().name != "MainProcess"))
     else:
