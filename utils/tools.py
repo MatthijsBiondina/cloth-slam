@@ -16,6 +16,24 @@ bcolors = {'PINK': '\033[95m',
            'RED': '\033[91m', }
 
 
+class UGENT:
+    BLUE = "#1E64C8"
+    YELLOW = "#FFD200"
+    WHITE = "#FFFFFF"
+    BLACK = "#000000"
+    ORANGE = "#F1A42B"
+    RED = "#DC4E28"
+    AQUA = "#2D8CA8"
+    PINK = "#E85E71"
+    SKY = "#8BBEE8"
+    LIGHTGREEN = "#AEB050"
+    PURPLE = "#825491"
+    WARMORANGE = "#FB7E3A"
+    TURQUOISE = "#27ABAD"
+    LIGHTPURPLE = "#BE5190"
+    GREEN = "#71A860"
+
+
 def bash(cmd):
     process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()

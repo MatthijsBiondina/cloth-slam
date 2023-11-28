@@ -62,12 +62,17 @@ class RealsenseSlave():
             if paused:
                 time.sleep(1 / self.CONTROL_LOOP_FREQUENCY)
             else:
-                frame = pipeline.wait_for_frames().get_color_frame()
+                waiter = pipeline.wait_for_frames()
+                frame = waiter.get_color_frame()
+                depth = waiter.get_depth_frame()
+
                 img = np.asanyarray(frame.get_data()).astype(np.uint8)
+                depth = np.asanyarray(depth.get_data())
 
                 if img_queue.qsize() < self.MAX_QSIZE:
-                    img_queue.put((frame.timestamp/1000,
-                                   serialize_ndarray(img)))
+                    img_queue.put((frame.timestamp / 1000,
+                                   serialize_ndarray(img),
+                                   serialize_ndarray(depth)))
                     counter += 1
 
         pipeline.stop()

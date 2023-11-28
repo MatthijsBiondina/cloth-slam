@@ -80,10 +80,10 @@ class InferenceModel:
                 self.__process_sys_command(sys_queue)
 
                 try:
-                    tcp_str, img_data = in_queue.get(timeout=1)
+                    tcp_str, img_data, depth_data = in_queue.get(timeout=1)
                     tcp = pickle.loads(tcp_str)
                     img = deserialize_ndarray(*img_data)
-                    pil = self.__preprocess_image(tcp, img)
+                    pil, depth = self.__preprocess_image(tcp, img)
 
                     if save:
                         self.__save_frame(pil, savedir)
@@ -91,7 +91,7 @@ class InferenceModel:
                     heat = self.__model_inference(pil, model, kernel)
                     heat_data = serialize_ndarray(
                         (heat * 255).astype(np.uint8))
-                    ou_queue.put((tcp_str, img_data, heat_data))
+                    ou_queue.put((tcp_str, img_data, depth_data, heat_data))
 
                     self.__show(pil, heat)
 
@@ -112,17 +112,19 @@ class InferenceModel:
 
     def __preprocess_image(self,
                            tcp_end_effector: np.ndarray,
-                           img: np.ndarray):
+                           img: np.ndarray, depth: np.ndarray):
         tcp = CAMERA_TCP @ tcp_end_effector
         rotation_3d = tcp[:3, :3]
         theta = np.arctan2(rotation_3d[2, 0], rotation_3d[1, 0])
 
         if theta > 0:  # rotated 90 degrees
             img = img.transpose(1, 0, 2)[::-1]
+            depth = depth.transpose(1, 0)[::-1]
         else:
             img = img.transpose(1, 0, 2)[:, ::-1]
+            depth = depth.transpose(1, 0)[:, ::-1]
 
-        return Image.fromarray(img)
+        return Image.fromarray(img), depth
 
     def __model_inference(self,
                           img: Image.Image,

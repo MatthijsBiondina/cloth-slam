@@ -14,7 +14,9 @@ from corner_grasp.grasp_config import POSE_LEFT_REST, POSE_LEFT_PRESENT, \
 from corner_grasp.slave_alignment import TemporalAligner
 from corner_grasp.slave_gaussian import GaussianMixtureModel
 from corner_grasp.slave_keypoints import InferenceModel
+from corner_grasp.slave_orientation import OrientationSlave
 from corner_grasp.slave_realsense import RealsenseSlave
+from slave_slam import SLAMSlave
 from utils.tools import pyout
 from utils.utils import serialize_ndarray, wait_for_next_cycle
 
@@ -44,21 +46,20 @@ class RobotMaster:
         self.neural_network = InferenceModel(self.aligner.pair_queue)
         self.gaussian_mixture = GaussianMixtureModel(
             self.neural_network.out_queue)
+        self.orientation = OrientationSlave(self.gaussian_mixture.ou_queue)
+        # self.slam = SLAMSlave(self.gaussian_mixture.ou_queue)
 
         A.wait()
 
     def scan_towel(self):
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
-        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
-        sys.exit(0)
-        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT,
-                                      joint_speed=0.1)
+        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        # sys.exit(0)
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
 
-        pyout(self.arm_right.get_tcp_pose())
-
         for pose, record_segment in (
-                zip(EXPLORATION_TRAJECTORY[:], EXPLORATION_RECORD_FLAG[:])):
+                zip(EXPLORATION_TRAJECTORY[:5], EXPLORATION_RECORD_FLAG[:5])):
             self.__move_arm_to_joint_pose(
                 self.arm_right, pose, record=record_segment)
 
@@ -68,6 +69,12 @@ class RobotMaster:
 
         self.camera.shutdown()
         self.aligner.shutdown()
+        self.neural_network.shutdown()
+        self.gaussian_mixture.shutdown()
+        self.orientation.shutdown()
+        self.slam.shutdown()
+
+        time.sleep(3600)
 
     def __move_arm_to_joint_pose(self,
                                  arm: URrtde,

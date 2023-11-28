@@ -11,6 +11,11 @@ CAMERA_TCP = np.array(
      [0.01894587, 0.00461225, 0.99980987, -0.13887213],
      [0., 0., 0., 1.]])
 
+# CAMERA_TCP = np.array(
+#     [[1., 0., 0., 0.],
+#      [0., 1., 0., ]]
+# )
+
 EXPLORATION_TRAJECTORY = \
     np.array([[+0.100, -0.721, +0.670, -0.449, -1.000, +0.000],
               [+0.000, -0.330, +0.700, -0.870, -1.000, +0.000],
@@ -28,3 +33,13 @@ EXPLORATION_RECORD_FLAG = \
 # PRETRAINED_MODEL_PATH = "/home/matt/Models/neat-disco.ckpt"
 PRETRAINED_MODEL_PATH = "/home/matt/Models/genial-water.ckpt"
 # PRETRAINED_MODEL_PATH = "/home/matt/Models/honest-yogurt.ckpt"
+
+# Realsense2 Intrinsics
+FOCAL_LENGTH_X = 613.616
+FOCAL_LENGTH_Y = 611.588
+PRINCIPAL_POINT_X = 319.943
+PRINCIPAL_POINT_Y = 239.386
+
+CAMERA_OFFSET_NOISE = 20  # in pixels
+MAHALANOBIS_THRESHOLD = 1.
+MIN_DISTANCE_THRESHOLD = .1

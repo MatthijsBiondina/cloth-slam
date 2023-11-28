@@ -1,3 +1,4 @@
+import json
 import pickle
 import time
 from multiprocessing import Queue, Process
@@ -19,6 +20,8 @@ from utils.utils import wait_for_next_cycle, deserialize_ndarray
 class GaussianMixtureModel:
     THRESHOLD = 0.1
     GMM_CONFIDENCE_THRESHOLD = 0.2
+    ROUNDNESS_THRESHOLD = 2
+    SIZE_THRESHOLD = 0.1  # Size threshold in terms of portion of width
     N_SAMPLES = 100
 
     def __init__(self, in_queue: Queue):
@@ -34,8 +37,6 @@ class GaussianMixtureModel:
     def __preprocess_heatmap(self, data: Tuple[Any, str]):
         heat = deserialize_ndarray(*data).astype(float) / 255
 
-        pyout(np.min(heat), np.max(heat))
-
         heat[heat < self.THRESHOLD] = 0.
 
         if np.sum(heat) < 1e-6:
@@ -50,19 +51,40 @@ class GaussianMixtureModel:
                               p=distribution.reshape(-1))
         samples = points.reshape((-1, 2))[II][..., ::-1]
 
-        gmm = GaussianMixture(n_components=2)
-        gmm.fit(samples)
-        mu, C, a = gmm.means_, gmm.covariances_, gmm.weights_
+        lowest_bic = np.inf
+        best_gmm = None
+        bic = []
+        n_components_range = range(1, 3)
+        for n_components in n_components_range:
+            gmm = GaussianMixture(n_components=n_components)
+            gmm.fit(samples)
+            bic.append(gmm.bic(samples))
+            if bic[-1] < lowest_bic:
+                lowest_bic = bic[-1]
+                best_gmm = gmm
+
+        mu, C, a = best_gmm.means_, best_gmm.covariances_, best_gmm.weights_
 
         # Check that we are certain enough about each component
         mu = mu[a > self.GMM_CONFIDENCE_THRESHOLD]
         C = C[a > self.GMM_CONFIDENCE_THRESHOLD]
         a = a[a > self.GMM_CONFIDENCE_THRESHOLD]
 
-        # Consider that both are the same gaussian
-        # d1 = (mu[0] - mu[1]).T @ np.linalg.inv(C[0]) @ (mu[0] - mu[1])
+        # Compute roundness of the measurements
+        valid_indices = np.empty(a.shape, dtype=bool)
+        for i, covariance in enumerate(C):
+            eigenvalues = np.linalg.eigvalsh(covariance)
+            ratio = max(eigenvalues) / min(eigenvalues)
+            size_check = all(eigen ** .5 <= self.SIZE_THRESHOLD * w
+                             for eigen in eigenvalues)
 
-        return mu, C, a
+            valid_indices[i] = ((ratio <= self.ROUNDNESS_THRESHOLD)
+                                & size_check)
+
+        mu = mu[valid_indices]
+        C = C[valid_indices]
+
+        return mu, C
 
     def __preprocess_image(self,
                            tcp_end_effector: np.ndarray,
@@ -83,47 +105,22 @@ class GaussianMixtureModel:
             t_start = time.time()
             try:
                 self.__process_sys_command(sys_queue)
-                tcp_str, img_data, heat_data = in_queue.get(timeout=1)
+                tcp_str, img_data, depth_data, heat_data = \
+                    in_queue.get(timeout=1)
                 tcp = pickle.loads(tcp_str)
                 img = deserialize_ndarray(*img_data)
                 img = self.__preprocess_image(tcp, img).astype(np.uint8)
                 heat = self.__preprocess_heatmap(heat_data)
                 if heat is None:
-                    means = []
+                    continue
                 else:
-                    mu, C, a = self.__fit_gaussian_mixture(heat)
+                    mu, C = self.__fit_gaussian_mixture(heat)
+                    if mu is None:
+                        continue
 
-                    for ii in range(a.size):
-                        eigenvalues, eigenvectors = np.linalg.eigh(C[ii])
-                        scale = np.sqrt(eigenvalues)
-
-                        angle = np.arctan2(eigenvectors[0, 1],
-                                           eigenvectors[0, 0]) * (180 / np.pi)
-
-                        # Center of the ellipse (mean)
-                        center = (int(mu[ii][0]), int(mu[ii][1]))
-
-                        pyout(center)
-
-                        # Width and height of the ellipse
-                        width, height = scale * 2  # 2 for 1 std deviation
-
-                        img = cv2.ellipse(
-                            img.copy(), center, (int(width), int(height)),
-                            angle, 0, 360, (255, 0, 0), 2)
-
-                    cv2.imshow("frame", img)
-                    cv2.waitKey(50)
-
-                    # pyout()
-
-
-
-
-
-
-
-
+                    kp = {'mu': mu.tolist(), 'C': C.tolist()}
+                    ou_queue.put((tcp_str, img_data, depth_data,
+                                  json.dumps(kp)))
 
             except BreakException:
                 break
@@ -131,8 +128,6 @@ class GaussianMixtureModel:
                 pass
             finally:
                 wait_for_next_cycle(t_start)
-
-        pyout()
 
     def __process_sys_command(self, sys_queue: Queue):
         if not sys_queue.empty():

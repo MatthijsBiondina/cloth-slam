@@ -60,8 +60,8 @@ class TemporalAligner:
                          TCP: Dict[int, Dict[str, Any]],
                          queue: Queue):
         while not queue.empty():
-            timestamp, data = queue.get()
-            pose = pickle.loads(data)[None, ...]
+            timestamp, tcp_data = queue.get()
+            pose = pickle.loads(tcp_data)[None, ...]
             seconds = int(timestamp)
 
             try:
@@ -78,7 +78,7 @@ class TemporalAligner:
                          in_queue: Queue,
                          ou_queue: Queue):
         while not in_queue.empty():
-            timestamp, data = in_queue.get()
+            timestamp, img_data, depth_data = in_queue.get()
             seconds = int(timestamp)
 
             tcp_slice = [TCP[seconds + ds] for ds in (-1, 0, 1)
@@ -87,7 +87,8 @@ class TemporalAligner:
             tcp_poses = np.concatenate([s["pose"] for s in tcp_slice], axis=0)
 
             argmin = np.argmin(np.abs(tcp_times - timestamp))
-            ou_queue.put((pickle.dumps(tcp_poses[argmin]), data))
+            ou_queue.put((
+                pickle.dumps(tcp_poses[argmin]), img_data, depth_data))
 
             for s in list(TCP.keys()):  # Clear old values
                 if s < seconds - 1:

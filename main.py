@@ -20,13 +20,6 @@ robot_master.scan_towel()
 
 sys.exit(0)
 
-
-CAMERA_TCP = np.array(
-    [[0.99972987, -0.01355228, -0.01888183, -0.03158717],
-     [0.01346261, 0.99989753, -0.00486777, -0.05201502],
-     [0.01894587, 0.00461225, 0.99980987, -0.13887213],
-     [0., 0., 0., 1.]])
-
 np.set_printoptions(precision=3, suppress=True)
 
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
@@ -117,7 +110,6 @@ def move_arms():
         poses.append(get_xyz(Rarm.get_tcp_pose()))
 
         tgts.append(pose_tgt / np.pi)
-
 
     pyout(tgts)
     # pyout()
