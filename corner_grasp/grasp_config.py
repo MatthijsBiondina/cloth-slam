@@ -4,6 +4,7 @@ POSE_LEFT_REST = np.array([0, -.25, -0.5, -.75, .5, 0]) * np.pi
 POSE_LEFT_PRESENT = np.array([0.5, - 0.75, 0, -0.5, 0, 0]) * np.pi
 
 POSE_RIGHT_REST = np.array([0., -.75, 0.5, -.25, -1., 0.]) * np.pi
+POSE_RIGHT_GRAB = np.array([-0.75, -.5, 0., -.5, 0., 0.]) * np.pi
 
 CAMERA_TCP = np.array(
     [[0.99972987, -0.01355228, -0.01888183, -0.03158717],

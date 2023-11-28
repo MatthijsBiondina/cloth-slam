@@ -1,3 +1,4 @@
+import json
 import pickle
 import sys
 import time
@@ -10,7 +11,8 @@ from airo_robots.grippers import Robotiq2F85
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 
 from corner_grasp.grasp_config import POSE_LEFT_REST, POSE_LEFT_PRESENT, \
-    POSE_RIGHT_REST, EXPLORATION_TRAJECTORY, EXPLORATION_RECORD_FLAG
+    POSE_RIGHT_REST, EXPLORATION_TRAJECTORY, EXPLORATION_RECORD_FLAG, \
+    POSE_RIGHT_GRAB
 from corner_grasp.slave_alignment import TemporalAligner
 from corner_grasp.slave_gaussian import GaussianMixtureModel
 from corner_grasp.slave_keypoints import InferenceModel
@@ -47,13 +49,16 @@ class RobotMaster:
         self.gaussian_mixture = GaussianMixtureModel(
             self.neural_network.out_queue)
         self.orientation = OrientationSlave(self.gaussian_mixture.ou_queue)
-        # self.slam = SLAMSlave(self.gaussian_mixture.ou_queue)
+        self.slam = SLAMSlave(self.orientation.ou_queue)
+
+        self.corners = self.slam.ou_queue
 
         A.wait()
 
     def scan_towel(self):
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
         # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
+        # self.arm_left.gripper.open()
         # sys.exit(0)
         self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
@@ -66,6 +71,14 @@ class RobotMaster:
         self.arm_right.move_to_joint_configuration(POSE_RIGHT_REST).wait()
         # self.arm_left.move_to_joint_configuration(POSE_LEFT_REST).wait()
         # self.arm_left.gripper.open()
+
+        self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_GRAB)
+        while self.corners.empty():
+            time.sleep(1)
+        while not self.corners.empty():
+            kpts = json.loads(self.corners.get())
+        pyout(kpts)
+
 
         self.camera.shutdown()
         self.aligner.shutdown()

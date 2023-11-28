@@ -109,7 +109,7 @@ class GaussianMixtureModel:
                     in_queue.get(timeout=1)
                 tcp = pickle.loads(tcp_str)
                 img = deserialize_ndarray(*img_data)
-                img = self.__preprocess_image(tcp, img).astype(np.uint8)
+                # img = self.__preprocess_image(tcp, img).astype(np.uint8)
                 heat = self.__preprocess_heatmap(heat_data)
                 if heat is None:
                     continue

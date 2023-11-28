@@ -19,6 +19,8 @@ from utils.utils import wait_for_next_cycle, deserialize_ndarray
 
 
 class SLAMSlave:
+    ORIENTATION_STD = 0.5
+
     def __init__(self, in_queue: Queue):
         self.in_queue = in_queue
         self.ou_queue = Queue()
@@ -52,7 +54,9 @@ class SLAMSlave:
                     [position[1], line_end[1]],
                     [position[2], line_end[2]], '-', color=c)
 
-    def __plot_TCPs(self, TCPs: List[np.ndarray], mu: np.ndarray):
+    def __plot_TCPs(self, TCPs: List[np.ndarray],
+                    mu: np.ndarray,
+                    nr: np.ndarray):
         TCPs_array = np.array(TCPs)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(111, projection='3d')
@@ -65,9 +69,17 @@ class SLAMSlave:
         ax.set_ylabel('Y axis')
         ax.set_zlabel('Z axis')
 
-        for x in mu.reshape((-1, 3)):
-            ax.plot([x[0], x[0]], [x[1], x[1]], [x[2], 0.],
-                    'o-', color=UGENT.GREEN)
+        if nr.size > 2:
+            count_threshold = np.sort(nr)[-2]
+        else:
+            count_threshold = 0
+
+        for x, count in zip(mu.reshape((-1, 6)), nr):
+            if count >= count_threshold:
+                ax.plot([x[0], x[0], x[0] + x[3]],
+                        [x[1], x[1], x[1] + x[4]],
+                        [x[2], 0., 0.],
+                        'o-', color=UGENT.GREEN)
 
         self.__add_trajectory(TCPs_array, ax, UGENT.BLUE)
 
@@ -103,12 +115,12 @@ class SLAMSlave:
         return ccp
 
     def compute_expected_measurement(self, P, ccp):
-        P = P.reshape((-1, 3, 1))
+        P = P.reshape((-1, 6, 1))
         C = ccp[:3, 3]
         R = np.linalg.inv(ccp[:3, :3])
 
         # Transform the 3D point from world coordinates to camera coordinates
-        P_cam = R[None, ...] @ (P - C[None, :, None])
+        P_cam = R[None, ...] @ (P[:, :3, :] - C[None, :, None])
 
         # X and Y were flipped on the frame to get it upright, hence
         # focal length and ppy are associated with the x-axis of the camera
@@ -119,11 +131,12 @@ class SLAMSlave:
         return np.concatenate((u, v), axis=1).reshape(-1, 1)
 
     def compute_measurement_jacobian(self, P, ccp):
-        P = P.reshape((-1, 3, 1))
-        J = ccp[:3, 3]
+        P = P.reshape((-1, 6, 1))
+        n = P.shape[0]
+        C = ccp[:3, 3]
         R = np.linalg.inv(ccp[:3, :3])
 
-        P_cam = R[None, ...] @ (P - J[None, :, None])
+        P_cam = R[None, ...] @ (P[:, :3, :] - C[None, :, None])
 
         # Compute the derivative of u with respect to the world coordinates
         c_u = FOCAL_LENGTH_Y * (
@@ -133,12 +146,10 @@ class SLAMSlave:
                 R[1][None, :] / P_cam[:, 2] -
                 R[2][None, :] * P_cam[:, 1] / P_cam[:, 2] ** 2)
 
-        J = np.concatenate((c_u, c_v), axis=1).reshape(-1, 3)
-        J = np.concatenate((J, np.zeros((J.shape[0],
-                                         (J.shape[0] // 2 - 1) * 3))),
-                           axis=1)
-        for ii in range(J.shape[0] // 2 - 1):
-            J[(ii + 1) * 2:] = np.roll(J[(ii + 1) * 2:], 3, axis=1)
+        J = np.zeros((n * 2, n * 6))
+        for ii in range(n):
+            J[ii * 2, ii * 6:ii * 6 + 3] = c_u[ii]
+            J[ii * 2 + 1, ii * 6:ii * 6 + 3] = c_v[ii]
 
         return J
 
@@ -154,8 +165,6 @@ class SLAMSlave:
             (Q, np.zeros((Q.shape[0], (nr_of_measurements - 1) * 2))), axis=1)
         for ii in range(1, nr_of_measurements):
             Q[ii * 2:] = np.roll(Q[ii * 2:], 2, axis=1)
-
-        pyout()
 
         Q += np.eye(Q.shape[0]) * CAMERA_OFFSET_NOISE ** 2
         if Q.shape[0] == 4:
@@ -178,17 +187,28 @@ class SLAMSlave:
 
     def fuse(self, mu, Sigma, *args):
         ii_from, ii_to, jj_from, jj_to = args
+        y_size = ii_to - ii_from
 
-        y = np.array([0., 0., 0.])[:, None]
+        y = np.zeros(y_size)[:, None]
         y_bar = mu[ii_from:ii_to] - mu[jj_from:jj_to]
-        C = np.zeros((3, mu.size))
-        C[:, ii_from:ii_to] = np.eye(3)
-        C[:, jj_from:jj_to] = -np.eye(3)
-        Q = np.eye(3) * 1e-6
+        C = np.zeros((y_size, mu.size))
+        C[:, ii_from:ii_to] = np.eye(y_size)
+        C[:, jj_from:jj_to] = -np.eye(y_size)
+        Q = np.eye(y_size) * 1e-6
         return self.kalman_update_formula(mu, Sigma, y, y_bar, C, Q)
 
     def mahalanobis_distance(self, mu1, Sigma1, mu2):
-        D = ((mu1 - mu2).T @ np.linalg.inv(Sigma1) @ (mu1 - mu2)) ** .5
+        # We're only interested in positions for distance
+        mu1_xyz = mu1.reshape(-1, 6)[:, :3].reshape(-1, 1)
+        mu2_xyz = mu2.reshape(-1, 6)[:, :3].reshape(-1, 1)
+        mu_diff = mu1_xyz - mu2_xyz
+
+        Sigma_ = Sigma1.reshape(-1, 6)[:, :3]
+        Sigma_ = Sigma_.reshape(mu1.shape[0], mu1_xyz.shape[0])
+        Sigma_ = Sigma_.T.reshape(-1, 6)[:, :3]
+        Sigma_ = Sigma_.reshape(mu1_xyz.shape[0], mu1_xyz.shape[0]).T
+
+        D = (mu_diff.T @ np.linalg.inv(Sigma_) @ mu_diff) ** .5
         return float(D)
 
     def check_point_infront_of_cameras(self, x, CCP):
@@ -209,7 +229,8 @@ class SLAMSlave:
         return mu, Sigma
 
     def sensor_fusion(self, mu, Sigma, mu_new, Sigma_new, CCP, nr):
-        nr = np.concatenate((nr, np.ones(mu.size // 2, dtype=int)))
+        n = mu_new.size // 6
+        nr = np.concatenate((nr, np.ones(n, dtype=int)))
         mu = np.concatenate((mu, mu_new))
         Sigma_tmp = np.zeros((Sigma.shape[0] + Sigma_new.shape[0],) * 2)
         Sigma_tmp[:Sigma.shape[0], :Sigma.shape[1]] = Sigma
@@ -220,18 +241,18 @@ class SLAMSlave:
         modified_flag = True
         while modified_flag:
             modified_flag = False
-            for ii in range(mu.shape[0] // 3):
+            for ii in range(mu.shape[0] // 6):
                 if modified_flag:
                     break
-                for jj in range(mu.shape[0] // 3):
+                for jj in range(mu.shape[0] // 6):
                     if modified_flag:
                         break
                     if ii == jj:
                         continue
 
                     # check hypothesis of merging these keypoints
-                    ii_from, ii_to = ii * 3, (ii + 1) * 3
-                    jj_from, jj_to = jj * 3, (jj + 1) * 3
+                    ii_from, ii_to = ii * 6, (ii + 1) * 6
+                    jj_from, jj_to = jj * 6, (jj + 1) * 6
 
                     mu_new, Sigma_new = self.fuse(
                         mu, Sigma, ii_from, ii_to, jj_from, jj_to)
@@ -241,7 +262,7 @@ class SLAMSlave:
                     if distance < MAHALANOBIS_THRESHOLD:
                         # Check that we are not merging outside bounding box
                         if self.check_point_infront_of_cameras(
-                                mu_new[ii_from:ii_to], CCP):
+                                mu_new[ii_from:ii_to - 3], CCP):
                             mu, Sigma = self.delete(
                                 mu_new, Sigma_new, jj_from, jj_to)
                             nr[ii] += 1
@@ -265,15 +286,55 @@ class SLAMSlave:
         Q = self.make_Q_matrix(np.array(measurement['C']))
 
         z_axis = ccp[:3, 2] / np.linalg.norm(ccp[:3, 2])
-        mu_ = np.concatenate((ccp[:3, 3] + .5 * z_axis,) * n, axis=0)[:, None]
+        x_axis = ccp[:3, 0] / np.linalg.norm(ccp[:3, 0])
+        mu_ = np.empty((0, 1))
+        Sigma_ = np.empty((0,))
+        for x_aligned in measurement['x-facing']:
+            if x_aligned == "True":
+                corner_axis = (x_axis * 0.1)[:, None]
+                uncertainty = np.full_like(
+                    x_axis, self.ORIENTATION_STD ** 2)
+            elif x_aligned == "False":
+                corner_axis = (-x_axis * 0.1)[:, None]
+                uncertainty = np.full_like(
+                    x_axis, self.ORIENTATION_STD ** 2)
+            elif x_aligned == "None":
+                corner_axis = (np.zeros_like(x_axis))[:, None]
+                uncertainty = np.full_like(x_axis, 10 ** 2)
+            else:
+                raise ValueError(f"Alignment {x_aligned} unknown.")
+
+            mu_ = np.concatenate((mu_,
+                                  ccp[:3, 3][:, None] + .5 * z_axis[:, None],
+                                  corner_axis))
+            Sigma_ = np.concatenate(
+                (Sigma_, np.full((3,), 10 ** 2), uncertainty))
+        Sigma_ = np.diag(Sigma_)
+
         for _ in range(n_iterations):
-            Sigma_ = np.eye(3 * n) * 10 ** 2
+            for ii in range(n):
+                Sigma_[(6 * ii):(6 * ii) + 3, (6 * ii):(6 * ii) + 3] = \
+                    np.eye(3) * 10 ** 2
             y_bar, C = self.calculate_y_bar_and_C(mu_, ccp)
             mu_, Sigma_ = self.kalman_update_formula(
                 mu_, Sigma_, y, y_bar, C, Q)
 
         mu, Sigma, nr = self.sensor_fusion(mu, Sigma, mu_, Sigma_, CCP, nr)
         return mu, Sigma, CCP, nr
+
+    def generate_output(self, mu, nr):
+        pts = mu.reshape(-1, 6)
+        II = np.argsort(nr)[::-1]
+
+        kp = []
+        for ii, idx in enumerate(II):
+            if ii == 2:
+                break
+
+            kp.append({'X': pts[idx, :3].tolist(),
+                       'theta': pts[idx, 3:].tolist()})
+
+        return kp
 
     def run(self, in_queue: Queue, ou_queue: Queue, sys_queue: Queue):
         TCPs = []
@@ -293,16 +354,19 @@ class SLAMSlave:
             t_start = time.time()
             try:
                 self.__process_sys_command(sys_queue)
-                tcp_str, img_data, kp_str = in_queue.get(timeout=1)
+                tcp_str, img_data, depth_data, kp_str = \
+                    in_queue.get(timeout=1)
                 tcp, img, y = self.__unpack_data(tcp_str, img_data, kp_str)
                 ccp = self.__tcp2ccp(tcp)
-
 
                 mu, Sigma, CCP, nr = self.measurement_update(
                     mu, Sigma, y, ccp, CCP, nr)
 
-                TCPs.append(ccp)
-                self.__plot_TCPs(TCPs, mu)
+                kpts = self.generate_output(mu, nr)
+                ou_queue.put(json.dumps(kpts))
+
+                # TCPs.append(ccp)
+                # self.__plot_TCPs(TCPs, mu, nr)
 
                 # pyout()
 
