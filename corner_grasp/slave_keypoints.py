@@ -34,8 +34,8 @@ class InferenceModel:
         self.initialize_workers(PRETRAINED_MODEL_PATH)
 
     def initialize_workers(self, checkpoint_name):
-        # for gpu_ii in range(torch.cuda.device_count()):
-        for gpu_ii in range(1):
+        for gpu_ii in range(torch.cuda.device_count()):
+            # for gpu_ii in range(1):
             self.processes.append(Process(
                 target=self.run,
                 args=(checkpoint_name, gpu_ii, self.in_queue, self.out_queue,

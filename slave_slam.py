@@ -332,7 +332,8 @@ class SLAMSlave:
                 break
 
             kp.append({'X': pts[idx, :3].tolist(),
-                       'theta': pts[idx, 3:].tolist()})
+                       'theta': pts[idx, 3:].tolist(),
+                       'count': int(nr[idx])})
 
         return kp
 
@@ -350,7 +351,9 @@ class SLAMSlave:
         # Initialize the camera locations (required for fusion)
         CCP = np.empty((0, 4, 4))
 
+        ii = 0
         while True:
+            ii += 1
             t_start = time.time()
             try:
                 self.__process_sys_command(sys_queue)
@@ -365,10 +368,10 @@ class SLAMSlave:
                 kpts = self.generate_output(mu, nr)
                 ou_queue.put(json.dumps(kpts))
 
-                # TCPs.append(ccp)
-                # self.__plot_TCPs(TCPs, mu, nr)
+                TCPs.append(ccp)
+                if ii % 10 == 0:
+                    self.__plot_TCPs(TCPs, mu, nr)
 
-                # pyout()
 
 
             except BreakException:

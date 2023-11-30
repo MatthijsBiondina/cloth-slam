@@ -1,21 +1,26 @@
 import numpy as np
 
-POSE_LEFT_REST = np.array([0, -.25, -0.5, -.75, .5, 0]) * np.pi
-POSE_LEFT_PRESENT = np.array([0.5, - 0.75, 0, -0.5, 0, 0]) * np.pi
+POSE_LEFT_SAFE = np.array([0, 0, -0.5, -.75, .5, 0]) * np.pi
+POSE_LEFT_REST = np.array([0., -.25, -0.5, -.75, .5, 0]) * np.pi
+POSE_LEFT_PRESENT = np.array([[0.5, -.25, -0.5, -.75, .5, 0],
+                              [0.7, - 0.75, 0, -0.5, 0, 0],
+                              [0.5, - 0.75, 0, -0.5, 0, 0]]) * np.pi
+
+POSE_LEFT_MESS1 = np.array([0, -.5, -0., -.75, .5, .5]) * np.pi
+POSE_LEFT_MESS2 = np.array([0, -.33, -0.67, -.5, .5, .5]) * np.pi
+POSE_LEFT_MESS3 = np.array([0, -.5, -0.72, -.28, .5, .5]) * np.pi
 
 POSE_RIGHT_REST = np.array([0., -.75, 0.5, -.25, -1., 0.]) * np.pi
-POSE_RIGHT_GRAB = np.array([-0.75, -.5, 0., -.5, 0., 0.]) * np.pi
+POSE_RIGHT_GRAB_INIT = np.array([-0.75, -.5, 0., -.5, 0., 0.]) * np.pi
+POSE_RIGHT_GRAB_LEFT = np.array([-1., -.25, -0.75, 0., 0.5, 0.]) * np.pi
+# POSE_RIGHT_GRAB_RIGHT = np.array([-.5, -.25, -0.75, -1., 0., 0.]) * np.pi
+POSE_RIGHT_GRAB_RIGHT = np.array([-.5, -.75, 0.75, -1., -0.5, 0.]) * np.pi
 
 CAMERA_TCP = np.array(
     [[0.99972987, -0.01355228, -0.01888183, -0.03158717],
      [0.01346261, 0.99989753, -0.00486777, -0.05201502],
      [0.01894587, 0.00461225, 0.99980987, -0.13887213],
      [0., 0., 0., 1.]])
-
-# CAMERA_TCP = np.array(
-#     [[1., 0., 0., 0.],
-#      [0., 1., 0., ]]
-# )
 
 EXPLORATION_TRAJECTORY = \
     np.array([[+0.100, -0.721, +0.670, -0.449, -1.000, +0.000],
