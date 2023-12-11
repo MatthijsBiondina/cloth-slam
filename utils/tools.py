@@ -152,6 +152,15 @@ def makedirs(path):
     pyout(f"mk >> {os.path.abspath(path)}", color="BLUE")
 
 
+def listdir(path: str):
+    filenames = sorted(os.listdir(path))
+    filepaths = [f"{path}/{fname}" for fname in filenames]
+    filepaths = [os.path.abspath(path) for path in filepaths]
+    return filepaths
+
+def fname(path: str):
+    return path.split("/")[-1]
+
 def pbar(iterable, desc="", leave=False, total=None, disable=False):
     # return iterable
     host = socket.gethostname()
