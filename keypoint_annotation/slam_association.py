@@ -16,6 +16,7 @@ class KeypointAssociation:
 
     def run(self):
         for trial_name in pbar(sorted(os.listdir(f"{self.root}/img"))):
+            pyout(trial_name)
             annotations_3d = self.__run_slam_on_manual_annotations(trial_name)
             self.__3d_to_camera(trial_name, annotations_3d)
 
@@ -82,7 +83,7 @@ class KeypointAssociation:
                 elif v == 1:
                     cv2.circle(img, (x1, x2), 5, (0, 127, 0), -1)
             cv2.imshow("image", img)
-            cv2.waitKey(50)
+            cv2.waitKey(int(1000 / 60))
 
         with open(f"{img_dir}/annotations_slam.json", "w+") as f:
             json.dump(annotations_new, f, indent=2)
