@@ -3,10 +3,12 @@ import pickle
 import time
 from multiprocessing import Queue, Process
 from queue import Empty
-from typing import List, Dict
+from typing import List, Dict, Optional
 
+import PIL
 import cv2
 import numpy as np
+from PIL import Image
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
@@ -15,16 +17,18 @@ from corner_grasp.grasp_config import CAMERA_TCP, PRINCIPAL_POINT_X, \
     MAHALANOBIS_THRESHOLD, MIN_DISTANCE_THRESHOLD
 from utils.exceptions import BreakException
 from utils.tools import pyout, UGENT
-from utils.utils import wait_for_next_cycle, deserialize_ndarray
+from utils.utils import wait_for_next_cycle, deserialize_ndarray, \
+    serialize_ndarray
 
 
 class SLAMSlave:
     ORIENTATION_STD = 0.5
 
-    def __init__(self, in_queue: Queue):
-        self.in_queue = in_queue
+    def __init__(self, in_queue: Optional[Queue] = None, render: bool = True):
+        self.in_queue = Queue() if in_queue is None else in_queue
         self.ou_queue = Queue()
         self.sys_queue = Queue()
+        self.render = render
 
         self.process = Process(
             target=self.run,
@@ -37,6 +41,17 @@ class SLAMSlave:
         kp = json.loads(kp_str)
 
         return tcp, img, kp
+
+    def process_measurement(self, tcp, img, keypoints):
+        N = len(keypoints)
+        Sigma = np.stack((np.eye(2) * 10,) * N, axis=0)
+        y = {'mu': keypoints, 'C': Sigma.tolist(), 'x-facing': ["None", ] * N}
+
+        self.in_queue.put((pickle.dumps(tcp),
+                           serialize_ndarray(np.array(img)),
+                           None,
+                           json.dumps(y)))
+        return json.loads(self.ou_queue.get())
 
     def __add_trajectory(self, tcp, ax, color):
         ax.plot(tcp[:, 0, -1], tcp[:, 1, -1], 0., '-', color=color)
@@ -97,7 +112,7 @@ class SLAMSlave:
         # Close the figure to free up memory
         plt.close(fig)
 
-    def __tcp2ccp(self, tcp):
+    def tcp2ccp(self, tcp):
         ccp = tcp @ CAMERA_TCP
 
         direction = ccp[:3, 0]
@@ -114,7 +129,7 @@ class SLAMSlave:
 
         return ccp
 
-    def compute_expected_measurement(self, P, ccp):
+    def compute_expected_measurement(self, P, ccp, return_3d=False):
         P = P.reshape((-1, 6, 1))
         C = ccp[:3, 3]
         R = np.linalg.inv(ccp[:3, :3])
@@ -128,7 +143,11 @@ class SLAMSlave:
         u = FOCAL_LENGTH_Y * P_cam[:, 0] / P_cam[:, 2] + PRINCIPAL_POINT_Y
         v = FOCAL_LENGTH_X * P_cam[:, 1] / P_cam[:, 2] + PRINCIPAL_POINT_X
 
-        return np.concatenate((u, v), axis=1).reshape(-1, 1)
+        y = np.concatenate((u, v), axis=1).reshape(-1, 1)
+        if return_3d:
+            return y, P_cam
+        else:
+            return y
 
     def compute_measurement_jacobian(self, P, ccp):
         P = P.reshape((-1, 6, 1))
@@ -360,7 +379,7 @@ class SLAMSlave:
                 tcp_str, img_data, depth_data, kp_str = \
                     in_queue.get(timeout=1)
                 tcp, img, y = self.__unpack_data(tcp_str, img_data, kp_str)
-                ccp = self.__tcp2ccp(tcp)
+                ccp = self.tcp2ccp(tcp)
 
                 mu, Sigma, CCP, nr = self.measurement_update(
                     mu, Sigma, y, ccp, CCP, nr)
@@ -369,7 +388,7 @@ class SLAMSlave:
                 ou_queue.put(json.dumps(kpts))
 
                 TCPs.append(ccp)
-                if ii % 25 == 0:
+                if ii % 10 == 0 and self.render:
                     self.__plot_TCPs(TCPs, mu, nr)
 
 
