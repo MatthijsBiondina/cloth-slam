@@ -1,6 +1,5 @@
 import json
 import pickle
-import sys
 import time
 import warnings
 from multiprocessing import Queue
@@ -19,9 +18,9 @@ from corner_grasp.slave_gaussian import GaussianMixtureModel
 from corner_grasp.slave_keypoints import InferenceModel
 from corner_grasp.slave_orientation import OrientationSlave
 from corner_grasp.slave_realsense import RealsenseSlave
-from slave_slam import SLAMSlave
+from corner_grasp.slave_slam import SLAMSlave
 from utils.tools import pyout
-from utils.utils import serialize_ndarray, wait_for_next_cycle
+from utils.utils import wait_for_next_cycle
 
 np.set_printoptions(precision=3, suppress=True)
 warnings.simplefilter('once', RuntimeWarning)

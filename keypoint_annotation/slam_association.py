@@ -1,13 +1,12 @@
 import json
 import os
-from multiprocessing import Queue
 
 import cv2
 import numpy as np
 from PIL import Image
 
-from slave_slam import SLAMSlave
-from utils.tools import pyout, makedirs, pbar, listdir
+from corner_grasp.slave_slam import SLAMSlave
+from utils.tools import pyout, pbar, listdir
 
 
 class KeypointAssociation:

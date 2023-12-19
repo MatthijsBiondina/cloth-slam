@@ -3,7 +3,7 @@ import json
 import cv2
 import numpy as np
 
-from slave_slam import SLAMSlave
+from corner_grasp.slave_slam import SLAMSlave
 from utils.tools import listdir, pbar, pyout, fname
 
 
