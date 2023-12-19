@@ -5,6 +5,7 @@ BLUE = "#1E64C8"
 YELLOW = "#FFD200"
 WHITE = "#FFFFFF"
 BLACK = "#000000"
+PRIMARY_COLORS = [BLUE, YELLOW, WHITE, BLACK]
 
 # Secondary colors
 ORANGE = "#F1A42B"
@@ -18,6 +19,8 @@ WARMORANGE = "#FB7E3A"
 TURQUOISE = "#27ABAD"
 LIGHTPURPLE = "#BE5190"
 GREEN = "#71A860"
+SECONDARY_COLORS = [ORANGE, RED, AQUA, PINK, SKY, LIGHTGREEN, PURPLE,
+                    WARMORANGE, TURQUOISE, LIGHTPURPLE, GREEN]
 
 
 def bgr(c):
@@ -25,7 +28,8 @@ def bgr(c):
 
 
 def rgb(c):
-    return tuple(int(channel * 255) for channel in matplotlib.colors.to_rgb(c))
+    return tuple(
+        int(channel * 255) for channel in matplotlib.colors.to_rgb(c))
 
 
 def rgba(c, alpha=0.9):
