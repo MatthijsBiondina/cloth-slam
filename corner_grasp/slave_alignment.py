@@ -1,13 +1,17 @@
+import base64
+import json
+import os
 import pickle
 import time
 from multiprocessing import Queue, Process
-from typing import Dict, Tuple, List, Any
+from typing import Dict, Tuple, List, Any, Optional
 
 import numpy as np
 
 from utils.exceptions import BreakException
-from utils.tools import pyout
-from utils.utils import clear_queue, wait_for_next_cycle, deserialize_ndarray
+from utils.tools import pyout, makedirs
+from utils.utils import clear_queue, wait_for_next_cycle, deserialize_ndarray, \
+    serialize_ndarray
 
 
 class TemporalAligner:
@@ -15,11 +19,13 @@ class TemporalAligner:
 
     def __init__(self,
                  tcp_queue: Queue,
-                 img_queue: Queue):
+                 img_queue: Queue,
+                 trial_name: Optional[str] = None):
         self.tcp_queue = tcp_queue
         self.img_queue = img_queue
         self.sys_queue = Queue()
         self.pair_queue = Queue()
+        self.trial_name = trial_name
 
         self.process = Process(
             target=self.run,
@@ -34,12 +40,17 @@ class TemporalAligner:
             out_queue: Queue):
         TCP = {}
 
+        root = None
+        if self.trial_name is not None:
+            root = f"/home/matt/Pictures/{self.trial_name}"
+            makedirs(root)
+
         while True:
             t_start = time.time()
             try:
                 self.__process_sys_command(sys_queue)
                 self.__read_tcp_queue(TCP, tcp_queue)
-                self.__read_img_queue(TCP, img_queue, out_queue)
+                self.__read_img_queue(TCP, img_queue, out_queue, root)
 
                 wait_for_next_cycle(t_start, self.CONTROL_LOOP_FREQUENCY)
 
@@ -76,7 +87,8 @@ class TemporalAligner:
     def __read_img_queue(self,
                          TCP: Dict[int, List[np.ndarray]],
                          in_queue: Queue,
-                         ou_queue: Queue):
+                         ou_queue: Queue,
+                         root: Optional[str] = None):
         while not in_queue.empty():
             timestamp, img_data, depth_data = in_queue.get()
             seconds = int(timestamp)
@@ -89,6 +101,14 @@ class TemporalAligner:
             argmin = np.argmin(np.abs(tcp_times - timestamp))
             ou_queue.put((
                 pickle.dumps(tcp_poses[argmin]), img_data, depth_data))
+
+            if root is not None:
+                sample = str(len(os.listdir(root))).zfill(3)
+                with open(f"{root}/{sample}.json", "w+") as f:
+                    json.dump({
+                        "tcp": serialize_ndarray(tcp_poses[argmin]),
+                        "img": img_data,
+                        "3d": depth_data}, f, indent=2)
 
             for s in list(TCP.keys()):  # Clear old values
                 if s < seconds - 1:

@@ -2,9 +2,11 @@ import numpy as np
 
 POSE_LEFT_SAFE = np.array([0, 0, -0.5, -.75, .5, 0]) * np.pi
 POSE_LEFT_REST = np.array([0., -.25, -0.5, -.75, .5, 0]) * np.pi
-POSE_LEFT_PRESENT = np.array([[0.5, -.25, -0.5, -.75, .5, 0],
-                              [0.7, - 0.75, 0, -0.5, 0, 0],
-                              [0.5, - 0.75, 0, -0.5, 0, 0]]) * np.pi
+# POSE_LEFT_PRESENT = np.array([[0.5, -.25, -0.5, -.75, .5, 0],
+#                               # [0.7, - 0.67, 0, -0.5, 0, 0],
+#                               [0.5, - 0.75, 0, -0.5, 0, 0]]) * np.pi
+POSE_LEFT_PRESENT = np.array([0.5, - 0.75, 0, -0.5, 0, 0]) * np.pi
+POSE_LEFT_DROP = np.array([0.5, - 0.5, 0, -0.5, 0, 0]) * np.pi
 
 POSE_LEFT_MESS1 = np.array([0, -.5, -0., -.75, .5, .5]) * np.pi
 POSE_LEFT_MESS2 = np.array([0, -.33, -0.67, -.5, .5, .5]) * np.pi

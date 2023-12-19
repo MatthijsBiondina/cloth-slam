@@ -369,7 +369,7 @@ class SLAMSlave:
                 ou_queue.put(json.dumps(kpts))
 
                 TCPs.append(ccp)
-                if ii % 10 == 0:
+                if ii % 25 == 0:
                     self.__plot_TCPs(TCPs, mu, nr)
 
 

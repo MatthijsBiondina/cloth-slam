@@ -55,28 +55,33 @@ class RobotMaster:
     MAX_QUEUE_SIZE = 1000
 
     def __init__(self,
-                 ip_right: str = "10.42.0.162",
-                 ip_left: str = "10.42.0.163"):
+                 arm_right: URrtde,
+                 arm_left: URrtde,
+                 trial_name: Optional[str] = None,
+                 ):
 
-        self.arm_right: URrtde = URrtde(ip_right, URrtde.UR3E_CONFIG)
-        self.arm_right.gripper = Robotiq2F85(ip_right)
-        self.arm_right.gripper.open()
-        self.arm_left = URrtde(ip_left, URrtde.UR3E_CONFIG)
-        self.arm_left.gripper = Robotiq2F85(ip_left)
-        self.arm_left.default_linear_acceleration = 1.
+        self.arm_right = arm_right
+        self.arm_left = arm_left
 
-        self.go_to_safe_pose()
+        # self.go_to_safe_pose()
 
         self.camera = RealsenseSlave()
         self.tcp_queue = Queue()
         self.aligner = TemporalAligner(
-            self.tcp_queue, self.camera.image_queue)
+            self.tcp_queue, self.camera.image_queue, trial_name)
         self.neural_network = InferenceModel(self.aligner.pair_queue)
         self.gaussian_mixture = GaussianMixtureModel(
             self.neural_network.out_queue)
         self.orientation = OrientationSlave(self.gaussian_mixture.ou_queue)
         self.slam = SLAMSlave(self.orientation.ou_queue)
         self.corners = self.slam.ou_queue
+
+        self.workers = {"camera": self.camera,
+                        "aligner": self.aligner,
+                        "nn": self.neural_network,
+                        "gmm": self.gaussian_mixture,
+                        "orientation": self.orientation,
+                        "slam": self.slam}
 
     def go_to_safe_pose(self):
         self.__move_arm_to_joint_pose(
@@ -95,20 +100,23 @@ class RobotMaster:
         self.__move_arm_to_joint_pose(
             self.arm_left, POSE_LEFT_SAFE, tcp=False)
         for _ in range(N):
-            for pose in (POSE_LEFT_MESS1, POSE_LEFT_MESS2,
-                         POSE_LEFT_MESS3, POSE_LEFT_MESS2):
+            for pose in (POSE_LEFT_MESS1, POSE_LEFT_MESS3,
+                         POSE_LEFT_MESS3, POSE_LEFT_MESS1):
                 pose[0] = np.random.uniform(-.5 * np.pi, .5 * np.pi)
-                pose[-1] = np.random.uniform(0. * np.pi, 1. * np.pi)
+                # pose[-1] = np.random.uniform(0. * np.pi, 1. * np.pi)
                 self.__move_arm_to_joint_pose(self.arm_left, pose, tcp=False)
         self.__move_arm_to_joint_pose(
             self.arm_left, POSE_LEFT_SAFE, tcp=False)
 
     def scan_towel(self):
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
-        # self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_REST)
         # self.arm_left.gripper.open()
         # sys.exit(0)
-        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT)
+        self.arm_left.default_leading_axis_joint_acceleration = 0.012
+        self.__move_arm_to_joint_pose(self.arm_left, POSE_LEFT_PRESENT,
+                                      joint_speed=0.1)
+        self.arm_left.default_leading_axis_joint_acceleration = 1.2
         self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_REST)
 
         for pose, record_segment in (
@@ -120,7 +128,7 @@ class RobotMaster:
         # self.arm_left.move_to_joint_configuration(POSE_LEFT_REST).wait()
         # self.arm_left.gripper.open()
 
-        self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_GRAB_INIT)
+        # self.__move_arm_to_joint_pose(self.arm_right, POSE_RIGHT_GRAB_INIT)
 
         while not self.corners.empty():
             kpts = json.loads(self.corners.get())
@@ -149,8 +157,6 @@ class RobotMaster:
         tcp_open[:3, 3] = X_corner + 0.02 * theta_corner
         tcp_grab = tcp_approach.copy()
         tcp_grab[:3, 3] = X_corner - 0.03 * theta_corner
-
-        pyout(angle_between_vectors(tcp_approach[:2, 2], X_corner[:2]))
 
         self.arm_right.gripper.close()
         if angle_between_vectors(tcp_approach[:2, 2], X_corner[:2]) > 0:
@@ -199,3 +205,8 @@ class RobotMaster:
 
         if record:
             self.camera.stop_recording()
+
+    def shutdown(self):
+        for w_name, worker in self.workers.items():
+            pyout(f"Shutting down {w_name}")
+            worker.shutdown()
